@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ThinkRider → TCX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF0F3; --surface:#FFFFFF; --ink:#18212C; --muted:#5B6773; --line:#D3D9E0;
+  --accent:#2F5BEA; --accent-ink:#FFFFFF; --watt:#E0A100; --warn:#B4361F;
+  color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121821; --surface:#1B2330; --ink:#E7ECF2; --muted:#9AA7B4; --line:#2C3746;
+    --accent:#6F8FFF; --accent-ink:#0E1420; --watt:#F2C23A; --warn:#FF8A70; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121821; --surface:#1B2330; --ink:#E7ECF2; --muted:#9AA7B4; --line:#2C3746;
+  --accent:#6F8FFF; --accent-ink:#0E1420; --watt:#F2C23A; --warn:#FF8A70; color-scheme: dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1rem/1.55 "Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:44rem;margin:0 auto;padding:2.5rem 1.25rem 3rem}
+h1{font:700 2.4rem/1.05 "Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;margin:0 0 .5rem;letter-spacing:-.01em}
+.lede{color:var(--muted);margin:0 0 1.75rem;max-width:36rem}
+.drop{display:block;position:relative;border:2px dashed var(--line);border-radius:14px;background:var(--surface);padding:2rem 1.25rem;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--accent)}
+.drop:focus-within{outline:3px solid var(--accent);outline-offset:3px}
+.drop strong{display:block;font:600 1.25rem/1.2 "Barlow Semi Condensed","Arial Narrow",sans-serif;margin-bottom:.25rem}
+.drop span{color:var(--muted);font-size:.95rem}
+.drop input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0}
+#rides{margin-top:1.75rem;display:grid;gap:.75rem}
+.ride{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:1rem 1.1rem}
+.ride header{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap}
+.ride h2{font:600 1.3rem/1.2 "Barlow Semi Condensed","Arial Narrow",sans-serif;margin:0}
+.ride .src{color:var(--muted);font-size:.85rem;overflow-wrap:anywhere}
+.stats{display:flex;flex-wrap:wrap;gap:.35rem 1.4rem;margin:.6rem 0 .5rem;font:500 1.05rem/1.3 "Barlow Semi Condensed","Arial Narrow",sans-serif}
+.stats small{font:400 .8rem "Source Sans 3",sans-serif;color:var(--muted);margin-left:.2rem}
+.stats .w{color:var(--watt)}
+svg.profile{display:block;width:100%;height:46px}
+.note{color:var(--muted);font-size:.85rem;margin:.4rem 0 0}
+.note button{font-size:.85rem;padding:.4rem .8rem}
+.err{color:var(--warn)}
+.actions{margin-top:1.5rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap}
+button{font:600 1rem "Source Sans 3",sans-serif;border:0;border-radius:8px;padding:.7rem 1.2rem;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink)}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button[disabled]{opacity:.5;cursor:not-allowed}
+#status{color:var(--muted);font-size:.95rem}
+details{margin-top:2.5rem;color:var(--muted);font-size:.95rem}
+summary{cursor:pointer;color:var(--ink);font-weight:600}
+code{font-size:.88em;background:var(--bg);padding:.05em .3em;border-radius:4px;overflow-wrap:anywhere}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <h1>ThinkRider → TCX</h1>
+  <p class="lede">Převede rozpracované záznamy jízd (<code>.tmp</code>) z aplikace ThinkRider na soubory TCX pro Stravu, Garmin Connect nebo intervals.icu. Soubory zůstávají ve vašem prohlížeči, nikam se neodesílají.</p>
+
+  <label class="drop" id="drop">
+    <strong>Vyberte soubory .tmp</strong>
+    <span>klepnutím sem, nebo je na počítači přetáhněte; může jich být víc najednou</span>
+    <input type="file" id="pick" multiple>
+  </label>
+
+  <div id="rides" aria-live="polite"></div>
+
+  <div class="actions" id="actions" hidden>
+    <button class="primary" id="save">Stáhnout TCX</button>
+    <button class="ghost" id="clear">Vymazat</button>
+    <span id="status"></span>
+  </div>
+
+  <details>
+    <summary>Jak s výsledkem naložit</summary>
+    <p>Soubory najdete ve složce <code>%USERPROFILE%\AppData\LocalLow\ZhiXingPai\ThinkRider</code>. Jednu jízdu stáhnete rovnou jako <code>.tcx</code>, víc jízd najednou jako ZIP.</p>
+    <p>Strava: Nahrát → Soubor, vybrat .tcx. Pak v aktivitě přepněte typ na virtuální jízdu a použijte „Opravit převýšení“, protože záznam výšku v bodech neobsahuje.</p>
+    <p>Pokud vložíte víc souborů téže jízdy (stejné RecordId), použije se ten nejdelší.</p>
+  </details>
+</main>
+
+<script>
+(function(){
+  const rides = new Map(); // recordId -> ride
+  const $ = id => document.getElementById(id);
+  function download(name, blob){
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function parse(text, name){
+    const lines = text.split(/\r?\n/);
+    const head = (lines[0] || "").trim();
+    if (!head.startsWith("#")) throw new Error("chybí hlavička záznamu ThinkRider");
+    const meta = {};
+    head.slice(1).split(";").forEach(p => { const i = p.indexOf(":"); if (i > 0) meta[p.slice(0,i)] = p.slice(i+1); });
+    const start = new Date(meta.StartTime);
+    if (isNaN(start)) throw new Error("neplatný čas startu");
+    const pts = [];
+    for (let k = 1; k < lines.length; k++){
+      const c = lines[k].split(",");
+      if (c.length < 12) continue;
+      const v = c.map(Number);
+      if (v.some(Number.isNaN)) continue;
+      pts.push({t:v[0], w:v[1], kmh:v[2], km:v[3], cad:v[4], hr:v[5], lat:v[6], lon:v[7], energy:v[9], climb:v[10]});
+    }
+    if (pts.length < 2) throw new Error("soubor neobsahuje data jízdy");
+    return {id: meta.RecordId || name, routeId: meta.RouteId, start, pts, file: name};
+  }
+
+  function summary(r){
+    const p = r.pts, last = p[p.length-1];
+    let kj = 0, prev = 0, hr = 0, hrn = 0, w = 0, cad = 0, hrMax = 0, wMax = 0, vMax = 0;
+    for (const x of p){ kj += x.w*(x.t-prev)/1000; prev = x.t; w += x.w; cad += x.cad;
+      if (x.hr > 0){ hr += x.hr; hrn++; } hrMax = Math.max(hrMax, x.hr); wMax = Math.max(wMax, x.w); vMax = Math.max(vMax, x.kmh); }
+    return {sec:last.t, km:last.km, kj, kcal:Math.round(last.energy/4.184), w:Math.round(w/p.length), wMax,
+      cad:Math.round(cad/p.length), hr:hrn?Math.round(hr/hrn):0, hrMax, vMax, climb:last.climb};
+  }
+
+  const iso = d => d.toISOString().replace(/\.\d{3}Z$/, "Z");
+  function tcx(r){
+    const s = summary(r), at = t => iso(new Date(r.start.getTime() + t*1000));
+    const o = [];
+    o.push('<?xml version="1.0" encoding="UTF-8"?>');
+    o.push('<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">');
+    o.push(`<Activities><Activity Sport="Biking"><Id>${at(0)}</Id><Lap StartTime="${at(0)}">`);
+    o.push(`<TotalTimeSeconds>${s.sec.toFixed(0)}</TotalTimeSeconds><DistanceMeters>${(s.km*1000).toFixed(1)}</DistanceMeters><MaximumSpeed>${(s.vMax/3.6).toFixed(3)}</MaximumSpeed><Calories>${s.kcal}</Calories>`);
+    if (s.hr) o.push(`<AverageHeartRateBpm><Value>${s.hr}</Value></AverageHeartRateBpm><MaximumHeartRateBpm><Value>${Math.round(s.hrMax)}</Value></MaximumHeartRateBpm>`);
+    o.push('<Intensity>Active</Intensity><TriggerMethod>Manual</TriggerMethod><Track>');
+    for (const x of r.pts){
+      o.push(`<Trackpoint><Time>${at(x.t)}</Time><Position><LatitudeDegrees>${x.lat.toFixed(7)}</LatitudeDegrees><LongitudeDegrees>${x.lon.toFixed(7)}</LongitudeDegrees></Position><DistanceMeters>${(x.km*1000).toFixed(2)}</DistanceMeters>`
+        + (x.hr > 0 ? `<HeartRateBpm><Value>${Math.round(x.hr)}</Value></HeartRateBpm>` : "")
+        + `<Cadence>${Math.min(254, Math.round(x.cad))}</Cadence><Extensions><ns3:TPX><ns3:Speed>${(x.kmh/3.6).toFixed(3)}</ns3:Speed><ns3:Watts>${Math.round(x.w)}</ns3:Watts></ns3:TPX></Extensions></Trackpoint>`);
+    }
+    o.push('</Track></Lap><Creator xsi:type="Device_t"><Name>ThinkRider (obnoveno)</Name></Creator></Activity></Activities></TrainingCenterDatabase>');
+    return o.join("\n");
+  }
+
+  function fileName(r){
+    const d = r.start, p = n => String(n).padStart(2,"0");
+    return `thinkrider_${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}` + (r.routeId ? `_trasa${r.routeId}` : "") + ".tcx";
+  }
+
+  // minimal ZIP (store, no compression)
+  const crcTable = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++){ let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = crcTable[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function zip(files){
+    const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+    const now = new Date(), dt = ((now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1)), dd = (((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate());
+    for (const f of files){
+      const name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint16(6,0x0800,true); h.setUint16(8,0,true);
+      h.setUint16(10,dt,true); h.setUint16(12,dd,true); h.setUint32(14,crc,true); h.setUint32(18,data.length,true); h.setUint32(22,data.length,true);
+      h.setUint16(26,name.length,true); h.setUint16(28,0,true);
+      parts.push(h.buffer, name, data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0,0x02014b50,true); c.setUint16(4,20,true); c.setUint16(6,20,true); c.setUint16(8,0x0800,true); c.setUint16(10,0,true);
+      c.setUint16(12,dt,true); c.setUint16(14,dd,true); c.setUint32(16,crc,true); c.setUint32(20,data.length,true); c.setUint32(24,data.length,true);
+      c.setUint16(28,name.length,true); c.setUint32(42,off,true);
+      central.push(c.buffer, name);
+      off += 30 + name.length + data.length;
+    }
+    const csize = central.reduce((a,b) => a + b.byteLength, 0);
+    const e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true); e.setUint32(12,csize,true); e.setUint32(16,off,true);
+    return new Blob([...parts, ...central, e.buffer]);
+  }
+
+  function profile(r){
+    const p = r.pts, maxT = p[p.length-1].t, n = 120, buckets = new Array(n).fill(0), cnt = new Array(n).fill(0);
+    for (const x of p){ const i = Math.min(n-1, Math.floor(x.t/maxT*n)); buckets[i] += x.w; cnt[i]++; }
+    const avg = buckets.map((b,i) => cnt[i] ? b/cnt[i] : 0), top = Math.max(1, ...avg);
+    const pts = avg.map((v,i) => `${(i/(n-1)*600).toFixed(1)},${(46 - v/top*42).toFixed(1)}`).join(" ");
+    return `<svg class="profile" viewBox="0 0 600 46" preserveAspectRatio="none" role="img" aria-label="Průběh výkonu"><polygon points="0,46 ${pts} 600,46" fill="var(--watt)" opacity=".22"/><polyline points="${pts}" fill="none" stroke="var(--watt)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
+  }
+
+  const fmtTime = s => { s = Math.round(s); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60; return `${h}:${String(m).padStart(2,"0")}:${String(x).padStart(2,"0")}`; };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+  const errors = [];
+  function refresh(){
+    const list = [...rides.values()].sort((a,b) => a.start - b.start);
+    $("rides").innerHTML = list.map(r => { const s = summary(r);
+      return `<article class="ride"><header><h2>${r.start.toLocaleString("cs-CZ",{weekday:"short",day:"numeric",month:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"})}</h2><span class="src">${esc(r.file)}</span></header>
+      <div class="stats"><span>${fmtTime(s.sec)}<small>čas</small></span><span>${s.km.toFixed(2).replace(".",",")}<small>km</small></span><span class="w">${s.w}<small>W průměr</small></span><span>${Math.round(s.kj)}<small>kJ</small></span>${s.hr?`<span>${s.hr}<small>tep</small></span>`:""}<span>${s.cad}<small>kadence</small></span></div>
+      ${profile(r)}<p class="note"><button class="ghost one" data-id="${esc(r.id)}">Stáhnout ${esc(fileName(r))}</button></p></article>`; }).join("")
+      + errors.map(e => `<p class="note err">${esc(e)}</p>`).join("");
+    $("actions").hidden = !list.length && !errors.length;
+    $("save").hidden = !list.length;
+    $("save").textContent = list.length > 1 ? `Stáhnout vše (${list.length} jízd, ZIP)` : "Stáhnout TCX";
+  }
+
+  async function add(files){
+    errors.length = 0; $("status").textContent = "";
+    for (const f of files){
+      try {
+        const r = parse(await f.text(), f.name);
+        const prev = rides.get(r.id);
+        if (!prev || r.pts.length > prev.pts.length) rides.set(r.id, r);
+      } catch(e){ errors.push(`${f.name}: ${e.message}`); }
+    }
+    refresh();
+  }
+
+  $("pick").addEventListener("change", e => { add([...e.target.files]); e.target.value = ""; });
+  const drop = $("drop");
+  ["dragenter","dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave","drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", e => add([...e.dataTransfer.files]));
+
+  $("clear").addEventListener("click", () => { rides.clear(); errors.length = 0; $("status").textContent = ""; refresh(); });
+
+  const tcxBlob = r => new Blob([tcx(r)], {type: "application/vnd.garmin.tcx+xml"});
+  $("save").addEventListener("click", () => {
+    const list = [...rides.values()].sort((a,b) => a.start - b.start);
+    if (list.length === 1) { download(fileName(list[0]), tcxBlob(list[0])); return; }
+    const files = list.map(r => ({name: fileName(r), text: tcx(r)}));
+    download(`thinkrider_${list.length}_jizd.zip`, zip(files));
+  });
+  $("rides").addEventListener("click", e => {
+    const b = e.target.closest("button.one"); if (!b) return;
+    const r = rides.get(b.dataset.id); if (r) download(fileName(r), tcxBlob(r));
+  });
+})();
+</script>
+</body>
+</html>
